@@ -17,8 +17,6 @@ def reconstruct_group(acquisitions, image_index):
             raise ValueError("The fixed sequence supports one 2D encoding without partitions.")
         if acq.sample_time_us != 0 and not np.isclose(acq.sample_time_us, 4.0, atol=0.001):
             raise ValueError("The fixed sequence requires a 4 microsecond ADC dwell.")
-    if any(acq.sample_time_us == 0 for acq in acquisitions):
-        logging.getLogger(__name__).info("MRD dwell is unset; using 4 microseconds from the bundled sequence.")
     with tempfile.TemporaryDirectory(prefix="radial-") as directory:
         source, target = Path(directory) / "input.npz", Path(directory) / "output.npz"
         np.savez(source, kspace=np.stack([acq.data for acq in acquisitions], axis=1),
