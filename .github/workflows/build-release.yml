@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  packages: write
 
 concurrency:
   group: openrecon-release
@@ -33,16 +34,34 @@ jobs:
         run: |
           sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
           sudo apt-get update
-          sudo apt-get install -y p7zip-full
+          sudo apt-get install -y p7zip-full jq
           df -h /
       - name: Build scanner package
         env:
           CONTAINER: ${{ inputs.container }}
         run: bash package.sh "$CONTAINER"
+      - name: Publish scanner image to GHCR
+        id: ghcr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONTAINER: ${{ inputs.container }}
+        run: |
+          set -euo pipefail
+          source "containers/$CONTAINER/params.sh"
+          vendor=$(jq -r '.general.vendor' "containers/$CONTAINER/OpenReconLabel.json")
+          source_image="openrecon_${vendor}_${toolName}:v${version}"
+          source_image="${source_image,,}"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${CONTAINER}:${version}-build-${GITHUB_RUN_NUMBER}"
+          7z x -so "dist/$CONTAINER/"*.zip '*.tar' | docker load
+          docker tag "$source_image" "$image"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker push "$image"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
       - name: Publish ZIP and PDF
         env:
           GH_TOKEN: ${{ github.token }}
           CONTAINER: ${{ inputs.container }}
+          IMAGE: ${{ steps.ghcr.outputs.image }}
         run: |
           source "containers/$CONTAINER/params.sh"
           tag="openrecon-${toolName}-v${version}-build-${GITHUB_RUN_NUMBER}"
@@ -50,4 +69,4 @@ jobs:
             "dist/$CONTAINER/"*.zip "dist/$CONTAINER/"*.pdf \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "$toolName $version (build $GITHUB_RUN_NUMBER)" \
-            --notes "Built from commit $GITHUB_SHA. Download the ZIP for scanner installation or local Docker use."
+            --notes "Built from commit $GITHUB_SHA. Download the ZIP for scanner installation. For local Docker use: docker pull --platform linux/amd64 $IMAGE"
