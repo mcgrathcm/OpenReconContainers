@@ -20,3 +20,4 @@ Container sources: `containers/<name>/`.
 
 Run **Actions → Build OpenRecon release → Run workflow** and select a container.
 The workflow publishes the ZIP/PDF to Releases and the same image to GHCR.
+Bump the container version before each release; published versions are not reused.

@@ -36,6 +36,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y p7zip-full jq
           df -h /
+      - name: Check version is unused
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONTAINER: ${{ inputs.container }}
+        run: |
+          set -euo pipefail
+          source "containers/$CONTAINER/params.sh"
+          tag="openrecon-${toolName}-v${version}"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${CONTAINER}:${version}"
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+             docker manifest inspect "$image" >/dev/null 2>&1; then
+            echo "Version $version is already published. Bump the container version before rebuilding." >&2
+            exit 1
+          fi
       - name: Build scanner package
         env:
           CONTAINER: ${{ inputs.container }}
@@ -51,7 +66,7 @@ jobs:
           vendor=$(jq -r '.general.vendor' "containers/$CONTAINER/OpenReconLabel.json")
           source_image="openrecon_${vendor}_${toolName}:v${version}"
           source_image="${source_image,,}"
-          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${CONTAINER}:${version}-build-${GITHUB_RUN_NUMBER}"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${CONTAINER}:${version}"
           7z x -so "dist/$CONTAINER/"*.zip '*.tar' | docker load
           docker tag "$source_image" "$image"
           printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
@@ -64,9 +79,9 @@ jobs:
           IMAGE: ${{ steps.ghcr.outputs.image }}
         run: |
           source "containers/$CONTAINER/params.sh"
-          tag="openrecon-${toolName}-v${version}-build-${GITHUB_RUN_NUMBER}"
+          tag="openrecon-${toolName}-v${version}"
           gh release create "$tag" \
             "dist/$CONTAINER/"*.zip "dist/$CONTAINER/"*.pdf \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "$toolName $version (build $GITHUB_RUN_NUMBER)" \
+            --title "$toolName $version" \
             --notes "Built from commit $GITHUB_SHA. Download the ZIP for scanner installation. For local Docker use: docker pull --platform linux/amd64 $IMAGE"
