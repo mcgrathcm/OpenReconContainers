@@ -15,8 +15,6 @@ def reconstruct_group(acquisitions, image_index):
             raise ValueError("The fixed sequence requires 256 untrimmed samples per spoke.")
         if acq.encoding_space_ref or acq.idx.kspace_encode_step_2:
             raise ValueError("The fixed sequence supports one 2D encoding without partitions.")
-        if acq.sample_time_us != 0 and not np.isclose(acq.sample_time_us, 2.0, atol=0.001):
-            raise ValueError("The fixed sequence requires a 2 microsecond ADC dwell.")
     with tempfile.TemporaryDirectory(prefix="radial-") as directory:
         source, target = Path(directory) / "input.npz", Path(directory) / "output.npz"
         np.savez(source, kspace=np.stack([acq.data for acq in acquisitions], axis=1),
